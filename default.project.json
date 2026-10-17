@@ -1,0 +1,57 @@
+{
+  "name": "ImperialShip",
+  "emitLegacyScripts": false,
+  "tree": {
+    "$className": "DataModel",
+    "Workspace": {
+      "$properties": {
+        "StreamingEnabled": false
+      },
+      "ImperialShip": {
+        "$path": "dist/ImperialShip.rbxm"
+      }
+    },
+    "Lighting": {
+      "$properties": {
+        "Technology": "Future",
+        "ClockTime": 0,
+        "Brightness": 0.4,
+        "Ambient": [0.11, 0.1, 0.09],
+        "OutdoorAmbient": [0.06, 0.06, 0.08],
+        "EnvironmentDiffuseScale": 0.25,
+        "EnvironmentSpecularScale": 0.8,
+        "ExposureCompensation": 0.25,
+        "GlobalShadows": true,
+        "ShadowSoftness": 0.25
+      },
+      "Sky": {
+        "$className": "Sky",
+        "$properties": {
+          "StarCount": 5000,
+          "CelestialBodiesShown": false
+        }
+      },
+      "Bloom": {
+        "$className": "BloomEffect",
+        "$properties": {
+          "Intensity": 0.7,
+          "Size": 30,
+          "Threshold": 1.4
+        }
+      },
+      "ColorCorrection": {
+        "$className": "ColorCorrectionEffect",
+        "$properties": {
+          "Contrast": 0.12,
+          "Saturation": -0.05,
+          "TintColor": [1.0, 0.95, 0.88]
+        }
+      }
+    },
+    "StarterPlayer": {
+      "$properties": {
+        "CameraMaxZoomDistance": 40
+      }
+    }
+  }
+}
