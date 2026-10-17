@@ -54,7 +54,6 @@ fn add_gloves(dom: &mut WeakDom, spec: &serde_json::Value) {
             .clone();
 
         let name = part["name"].as_str().unwrap();
-        let cuff = name == "GloveCuff";
         let shape = match part["shape"].as_str().unwrap() {
             "Ball" => 0,
             "Block" => 1,
@@ -67,16 +66,18 @@ fn add_gloves(dom: &mut WeakDom, spec: &serde_json::Value) {
             .iter()
             .map(|v| v.as_f64().unwrap() as f32)
             .collect();
-        let color = if cuff {
-            Color3uint8::new(52, 52, 58)
-        } else {
-            Color3uint8::new(27, 27, 30)
-        };
-        const LEATHER: u32 = 2309;
+        let rgb: Vec<u8> = part["color"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_u64().unwrap() as u8)
+            .collect();
+        let color = Color3uint8::new(rgb[0], rgb[1], rgb[2]);
+        let material = part["material"].as_u64().unwrap() as u32;
         let mut attributes = Attributes::new();
         attributes.insert(
             "OriginalMaterial".to_owned(),
-            Variant::EnumItem(EnumItem { ty: "Material".to_owned(), value: LEATHER }),
+            Variant::EnumItem(EnumItem { ty: "Material".to_owned(), value: material }),
         );
         attributes.insert("OriginalMaterialVariant".to_owned(), Variant::String(String::new()));
 
@@ -90,7 +91,7 @@ fn add_gloves(dom: &mut WeakDom, spec: &serde_json::Value) {
             .with_property("Size", Vector3::new(size[0], size[1], size[2]))
             .with_property("Shape", Enum::from_u32(shape))
             .with_property("Color", color)
-            .with_property("Material", Enum::from_u32(LEATHER))
+            .with_property("Material", Enum::from_u32(material))
             .with_property("Transparency", 0.0f32)
             .with_property("Massless", true)
             .with_property("CastShadow", true)

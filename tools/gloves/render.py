@@ -5,6 +5,7 @@ from scipy.spatial import ConvexHull
 from PIL import Image, ImageDraw
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cf import cf_from_xml, inv
+from surface import cell_hulls
 
 root = ET.parse(sys.argv[1]).getroot()
 shared = {s.get('md5'): base64.b64decode(s.text or '') for s in root.find('SharedStrings')}
@@ -45,20 +46,13 @@ for model in [i for i in root.iter('Item') if i.get('class') == 'Model' and name
     raw = zstandard.ZstdDecompressor().decompressobj().decompress(blob[12:])
     hd = struct.unpack('<9I6f', raw[:60])
     pm = np.frombuffer(raw[60 + hd[7]:60 + hd[7] + hd[8]], '<f4').reshape(-1, 3).astype(float)
-    pts = pm * (vec(prop(mesh, 'size')) / vec(prop(mesh, 'InitialSize')))
-    ycuts = np.array([-np.inf, -0.52, 0, 0.52, np.inf]) * 1.0755
+    # the same rebuilt arm surface the glove was fitted to
     tris = []
-    for k in range(4):
-        for sx in (-1, 1):
-            for sz in (-1, 1):
-                e = 0.03  # overlap neighbouring cells so the rebuilt hulls close up
-                m = ((pts[:, 1] >= ycuts[k] - e) & (pts[:, 1] <= ycuts[k + 1] + e)
-                     & (pts[:, 0] * sx >= -e) & (pts[:, 2] * sz >= -e))
-                if m.sum() < 4: continue
-                q = pts[m]; hull = ConvexHull(q); tris.append(q[hull.simplices])
+    for _, verts in cell_hulls(pm, vec(prop(mesh, 'size')) / vec(prop(mesh, 'InitialSize'))):
+        tris.append(verts[ConvexHull(verts).simplices])
     meshes.append((xform(cf_from_xml(prop(mesh, 'CFrame')), np.concatenate(tris)), rgb(mesh)))
     for g in kids:
-        if name(g) not in ('Glove', 'GloveCuff'): continue
+        if not name(g).startswith('Glove'): continue
         h = vec(prop(g, 'size')) / 2; shape = int(prop(g, 'shape').text)
         t = {0: ball_tris, 1: box_tris, 2: cyl_tris}[shape](h)
         meshes.append((xform(cf_from_xml(prop(g, 'CFrame')), t), rgb(g)))
@@ -114,7 +108,7 @@ W, H = 520, 620
 views = [
     ('Front', render(np.radians(15), np.radians(10), np.array([0, -0.05, 0]), 100, W, H)),
     ('Back', render(np.radians(180 + 20), np.radians(10), np.array([0, -0.05, 0]), 100, W, H)),
-    ('Right hand close-up (outer side)', render(np.radians(55), np.radians(20), np.array([1.5, -0.75, 0]), 230, W, H)),
+    ('Right arm, outer side', render(np.radians(70), np.radians(12), np.array([1.5, -0.1, 0]), 200, W, H)),
 ]
 pad = 12; sheet = Image.new('RGB', (len(views) * (W + pad) + pad, H + 2 * pad + 26), (245, 246, 248))
 dr = ImageDraw.Draw(sheet)
