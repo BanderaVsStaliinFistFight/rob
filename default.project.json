@@ -16,35 +16,48 @@
         "Technology": "Future",
         "ClockTime": 0,
         "Brightness": 0.4,
-        "Ambient": [0.11, 0.1, 0.09],
-        "OutdoorAmbient": [0.06, 0.06, 0.08],
-        "EnvironmentDiffuseScale": 0.25,
-        "EnvironmentSpecularScale": 0.8,
-        "ExposureCompensation": 0.25,
+        "Ambient": [
+          0.085,
+          0.078,
+          0.07
+        ],
+        "OutdoorAmbient": [
+          0.04,
+          0.04,
+          0.05
+        ],
+        "EnvironmentDiffuseScale": 0.35,
+        "EnvironmentSpecularScale": 1,
+        "ExposureCompensation": 0.3,
         "GlobalShadows": true,
-        "ShadowSoftness": 0.25
+        "ShadowSoftness": 0.15
       },
       "Sky": {
         "$className": "Sky",
         "$properties": {
-          "StarCount": 5000,
+          "StarCount": 3000,
           "CelestialBodiesShown": false
         }
       },
       "Bloom": {
         "$className": "BloomEffect",
         "$properties": {
-          "Intensity": 0.7,
-          "Size": 30,
-          "Threshold": 1.4
+          "Intensity": 0.4,
+          "Size": 24,
+          "Threshold": 1.8
         }
       },
       "ColorCorrection": {
         "$className": "ColorCorrectionEffect",
         "$properties": {
-          "Contrast": 0.12,
-          "Saturation": -0.05,
-          "TintColor": [1.0, 0.95, 0.88]
+          "Contrast": 0.16,
+          "Saturation": -0.12,
+          "Brightness": -0.01,
+          "TintColor": [
+            1.0,
+            0.95,
+            0.9
+          ]
         }
       }
     },

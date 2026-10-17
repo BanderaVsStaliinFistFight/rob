@@ -176,10 +176,12 @@ for _, inst in ship:GetDescendants() do
 		table.insert(screens, { label = inst, lines = lines, nextAt = rng:NextNumber(0, 1) })
 	elseif fx == "Door" and inst:IsA("Model") then
 		local leaf = inst:FindFirstChild("Leaf") :: Model
-		local lamps = {}
+		local lamps, steam = {}, {}
 		for _, p in inst:GetDescendants() do
 			if p:IsA("BasePart") and p:GetAttribute("Fx") == "DoorLamp" then
 				table.insert(lamps, p)
+			elseif p:IsA("ParticleEmitter") and p.Name == "DoorSteam" then
+				table.insert(steam, p)
 			end
 		end
 		table.insert(doors, {
@@ -189,6 +191,7 @@ for _, inst in ship:GetDescendants() do
 			offset = leaf:GetAttribute("OpenOffset") or Vector3.new(0, 12, 0),
 			alpha = 0,
 			lamps = lamps,
+			steam = steam,
 			lampOpen = nil,
 		})
 	end
@@ -356,6 +359,12 @@ RunService.Heartbeat:Connect(function(dt)
 		end
 		local open = target == 1
 		if open ~= d.lampOpen then
+			-- Hydraulics vent a burst of steam as the seals release
+			if open and d.lampOpen ~= nil then
+				for _, emitter in d.steam do
+					emitter:Emit(18)
+				end
+			end
 			d.lampOpen = open
 			for _, lamp in d.lamps do
 				lamp.Color = if open then DOOR_OPEN else DOOR_SHUT

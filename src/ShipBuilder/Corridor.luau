@@ -6,6 +6,7 @@
 local Kit = require(script.Parent.Kit)
 local Layout = require(script.Parent.Layout)
 local Props = require(script.Parent.Props)
+local Surface = require(script.Parent.Surface)
 
 local P = Kit.Palette
 local M = Enum.Material
@@ -38,6 +39,36 @@ local BAYS = {
 
 local Corridor = {}
 
+-- Riveted hull plating over a dark backing, with diamond-plate kick panels
+local function plating(seed: number): Surface.Style
+	return {
+		course = 3.6,
+		length = { 4, 4 },
+		joint = 0.1,
+		bond = false,
+		colors = { P.Hull, Color3.fromRGB(54, 52, 49), Color3.fromRGB(63, 60, 56) },
+		materials = { M.Metal },
+		vary = 0.07,
+		grime = 0.3,
+		rust = 0.03,
+		seed = seed,
+	}
+end
+
+local function kickPlates(seed: number): Surface.Style
+	return {
+		course = 1.2,
+		length = { 2, 2 },
+		joint = 0.08,
+		bond = false,
+		colors = { P.HullDark, Color3.fromRGB(42, 40, 38) },
+		materials = { M.DiamondPlate },
+		vary = 0.06,
+		grime = 0.2,
+		seed = seed,
+	}
+end
+
 -- Frame on a wall's inner face: X runs along the wall, -Z points into the corridor.
 local function wallFace(side: number, z: number, y: number): CFrame
 	return CFrame.fromMatrix(Vector3.new(side * C.half, y, z), Vector3.new(0, 0, -side), Vector3.yAxis)
@@ -54,23 +85,9 @@ local function solidWall(parent: Instance, side: number, zc: number)
 		"Wall",
 		Vector3.new(8, C.spring - FLOOR_BOTTOM, C.wall),
 		wallBase(side, zc) * CFrame.new(0, (C.spring - FLOOR_BOTTOM) / 2, 0),
-		P.Hull,
+		P.Seam,
 		M.Metal
 	)
-	-- Recessed panel look: a darker inset framed by raised strips
-	local face = wallFace(side, zc, 0)
-	Kit.part(parent, "WallPanel", Vector3.new(5.6, 7, 0.1), face * CFrame.new(0, 6, -0.05), P.HullDark, M.Metal, DECOR)
-	for _, y in { 2.4, 9.6 } do
-		Kit.part(
-			parent,
-			"PanelTrim",
-			Vector3.new(6, 0.35, 0.25),
-			face * CFrame.new(0, y, -0.12),
-			P.Iron,
-			M.Metal,
-			DECOR
-		)
-	end
 end
 
 -- Pointed lancet window looking out into the void.
@@ -86,7 +103,7 @@ local function windowBay(structure: Instance, dressing: Instance, side: number, 
 		spring = spring - FLOOR_BOTTOM,
 		radius = radius,
 		step = 0.4,
-	}, P.Hull, M.Metal)
+	}, P.Seam, M.Metal)
 	local frameDepth = C.wall + 0.5
 	Kit.archRib(
 		structure,
@@ -339,7 +356,7 @@ local function chapelDoorBay(structure: Instance, dressing: Instance, side: numb
 		spring = DOOR.spring - FLOOR_BOTTOM,
 		radius = radius,
 		step = 0.4,
-	}, P.Hull, M.Metal)
+	}, P.Seam, M.Metal)
 	local depth = C.wall + 0.6
 	Kit.archRib(
 		structure,
@@ -392,13 +409,18 @@ function Corridor.build(ship: Model)
 		P.HullDark,
 		M.Metal
 	)
-	Kit.part(
+	Surface.tiles(
 		structure,
-		"Walkway",
-		Vector3.new(C.walk * 2, C.gutter, LENGTH),
-		CFrame.new(0, -C.gutter / 2, MID),
-		P.Iron,
-		M.DiamondPlate
+		CFrame.new(0, 0, MID),
+		C.walk * 2,
+		LENGTH,
+		4,
+		0.1,
+		{ P.Iron, Color3.fromRGB(70, 67, 62), Color3.fromRGB(84, 80, 74) },
+		M.DiamondPlate,
+		0.06,
+		31,
+		C.gutter
 	)
 	Kit.part(structure, "Runner", Vector3.new(3.2, 0.06, LENGTH - 2), CFrame.new(0, 0.03, MID), P.ImperialRed, M.Fabric)
 	for side = -1, 1, 2 do
@@ -426,7 +448,7 @@ function Corridor.build(ship: Model)
 			"GutterGlow",
 			Vector3.new(0.4, 0.1, LENGTH),
 			CFrame.new(gx + side * 0.7, -C.gutter + 0.05, MID),
-			Color3.fromRGB(255, 96, 32),
+			Color3.fromRGB(150, 50, 18),
 			M.Neon,
 			GLOW
 		)
@@ -510,6 +532,41 @@ function Corridor.build(ship: Model)
 		end
 	end
 
+	-- Plating over the side walls and the two bulkheads
+	for side = -1, 1, 2 do
+		local holes = {}
+		for i, bay in BAYS do
+			local x = -side * (C.zMin + 8 * (i - 1) + 4)
+			local feature = bay[if side < 0 then 1 else 2]
+			if feature == "window" then
+				table.insert(holes, Surface.archHole(x, 4, 2.75, 8.5, 3, 0.15))
+			elseif feature == "chapelDoor" then
+				table.insert(holes, Surface.archHole(x, DOOR.width, 0, DOOR.spring, DOOR.width * 0.75, 0.2))
+			end
+		end
+		local face = wallFace(side, MID, 0)
+		local half = LENGTH / 2
+		Surface.clad(structure, face, { x0 = -half, x1 = half, y0 = 0, y1 = 1.2, holes = holes }, kickPlates(40 + side))
+		Surface.clad(
+			structure,
+			face,
+			{ x0 = -half, x1 = half, y0 = 1.2, y1 = C.spring - 0.3, holes = holes },
+			plating(50 + side)
+		)
+	end
+	for i, e in { { C.zMin, 1 }, { C.zMax, -1 } } do
+		local face = Kit.lookAt(Vector3.new(0, 0, e[1]), Vector3.new(0, 0, e[1] + e[2]))
+		local door = Layout.Door
+		Surface.clad(structure, face, {
+			x0 = -C.half,
+			x1 = C.half,
+			y0 = 0,
+			y1 = APEX,
+			vault = { span = SPAN, spring = C.spring, radius = C.radius },
+			holes = { { x = 0, width = door.width + 0.4, sill = -1, top = door.height + 0.2 } },
+		}, plating(60 + i))
+	end
+
 	-- Pillars, ribs and the barrel vault
 	Kit.archRib(
 		structure,
@@ -579,6 +636,35 @@ function Corridor.build(ship: Model)
 		Props.beacon(dressing, Kit.lookAt(Vector3.new(C.half - 1.2, 10.6, z), Vector3.new(0, 10.6, z)))
 	end
 
+	-- Pipe flanges mid-bay, stencilled deck markings and frame numbers
+	for i = 1, #BAYS do
+		local z = C.zMin + 8 * (i - 1) + 4
+		for side = -1, 1, 2 do
+			for _, c in { { C.half - 0.5, C.spring + 0.85, 0.7 }, { C.half - 0.75, C.spring + 1.7, 0.5 } } do
+				local cf = CFrame.new(side * c[1], c[2], z) * CFrame.Angles(0, math.pi / 2, 0)
+				Kit.cylinder(dressing, "Flange", 0.3, c[3] + 0.25, cf, P.Iron, M.Metal, DECOR)
+			end
+		end
+	end
+	for index = 2, #RIBS - 1 do
+		local z = RIBS[index]
+		for side = -1, 1, 2 do
+			local face = Kit.lookAt(Vector3.new(side * (C.half - 1.2), 2.1, z), Vector3.new(0, 2.1, z))
+			Surface.stencil(dressing, face, Vector2.new(1.1, 0.55), string.format("VII-%02d", index - 1))
+		end
+	end
+	local markings = {
+		{ -1, C.zMin + 4, "COMMAND DECK" },
+		{ 1, C.zMin + 4, "COMMAND DECK" },
+		{ -1, C.zMax - 4, "ENGINARIUM" },
+		{ 1, C.zMax - 4, "DECK VII" },
+	}
+	for _, m in markings do
+		Surface.stencil(dressing, wallFace(m[1], m[2], 10.3), Vector2.new(6, 1.1), m[3])
+	end
+	Surface.puddle(dressing, Vector3.new(2.3, 0, 26.5), 2.4, 5)
+	Surface.puddle(dressing, Vector3.new(-2.6, 0, -13), 1.6, 6)
+
 	-- Cables slung between the ribs
 	for i = 1, #RIBS - 1 do
 		for side = -1, 1, 2 do
@@ -596,6 +682,7 @@ function Corridor.build(ship: Model)
 	end
 
 	Props.servoSkull(dressing, CFrame.new(0, 7.5, MID + 22), Vector3.new(1.8, 0.7, 22), 0.11, 0)
+	Props.haze(dressing, CFrame.new(0, 7, MID), Vector3.new(SPAN - 4, 10, LENGTH - 4), 0.35)
 
 	-- Spawn plate near the stern end, facing the bridge
 	local spawn = Kit.new("SpawnLocation", {

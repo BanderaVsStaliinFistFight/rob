@@ -6,6 +6,7 @@
 local Kit = require(script.Parent.Kit)
 local Layout = require(script.Parent.Layout)
 local Props = require(script.Parent.Props)
+local Surface = require(script.Parent.Surface)
 
 local P = Kit.Palette
 local M = Enum.Material
@@ -25,6 +26,26 @@ local WALL = 2
 local RIBS = { H.xMin + 0.8, 15, 20, 25, H.xMax - 0.8 }
 
 local Chapel = {}
+
+-- Dressed limestone, warmer and finer than the bridge's slate
+local function limestone(seed: number): Surface.Style
+	return {
+		course = 1.6,
+		length = { 2.2, 3.6 },
+		joint = 0.1,
+		bond = true,
+		colors = {
+			Color3.fromRGB(124, 116, 104),
+			Color3.fromRGB(114, 107, 97),
+			Color3.fromRGB(132, 123, 110),
+			Color3.fromRGB(106, 100, 92),
+		},
+		materials = { M.Limestone, M.Limestone, M.Sandstone },
+		vary = 0.06,
+		grime = 0.3,
+		seed = seed,
+	}
+end
 
 -- Vault frame: X across the span (world Z), depth along world X.
 local function across(x: number, y: number): CFrame
@@ -166,9 +187,10 @@ local function shell(structure: Instance)
 		P.HullDark,
 		M.Metal
 	)
+	local rand = Kit.random(77)
 	for i = 0, LENGTH / 2 - 1 do
 		for j = 0, SPAN / 2 - 1 do
-			local color = if (i + j) % 2 == 0 then P.Marble else P.StoneDark
+			local color = Surface.shade(if (i + j) % 2 == 0 then P.Marble else P.StoneDark, 1 + rand(-0.07, 0.07))
 			Kit.part(
 				structure,
 				"FloorTile",
@@ -199,8 +221,8 @@ local function shell(structure: Instance)
 			"Wall",
 			Vector3.new(LENGTH + WALL, H.spring + 2, WALL),
 			CFrame.new(CX + WALL / 2, (H.spring - 2) / 2, z),
-			P.Stone,
-			M.Slate
+			P.Mortar,
+			M.Concrete
 		)
 		Kit.part(
 			structure,
@@ -242,17 +264,58 @@ local function shell(structure: Instance)
 		"Wall",
 		Vector3.new(WALL, TOP + 2, SPAN + 2 * WALL),
 		CFrame.new(H.xMax + WALL / 2, (TOP - 2) / 2, CZ),
-		P.Stone,
-		M.Slate
+		P.Mortar,
+		M.Concrete
 	)
 	Kit.part(
 		structure,
 		"Gable",
 		Vector3.new(0.8, TOP - C.spring, SPAN + 2 * WALL),
 		CFrame.new(H.xMin - 0.4, (C.spring + TOP) / 2, CZ),
-		P.Stone,
-		M.Slate
+		P.Mortar,
+		M.Concrete
 	)
+
+	-- Masonry facing on all four walls
+	local vault = { span = SPAN, spring = H.spring, radius = H.radius }
+	local pilasters = {}
+	for _, x in { -5, 0, 5 } do
+		table.insert(pilasters, { x - 0.65, x + 0.65, 0, H.spring })
+	end
+	for s, z in { H.zMin, H.zMax } do
+		local face = Kit.lookAt(Vector3.new(CX, 0, z), Vector3.new(CX, 0, CZ))
+		Surface.clad(
+			structure,
+			face,
+			{ x0 = -LENGTH / 2, x1 = LENGTH / 2, y0 = 0, y1 = H.spring - 0.3, skips = pilasters },
+			limestone(70 + s)
+		)
+	end
+	Surface.clad(structure, Kit.lookAt(Vector3.new(H.xMax, 0, CZ), Vector3.new(0, 0, CZ)), {
+		x0 = -SPAN / 2,
+		x1 = SPAN / 2,
+		y0 = 0,
+		y1 = APEX,
+		vault = vault,
+		holes = { Surface.archHole(0, 9.0, 6.6, 15.8, 6.75, 0.4) },
+	}, limestone(73))
+	Surface.clad(structure, Kit.lookAt(Vector3.new(H.xMin, 0, CZ), Vector3.new(100, 0, CZ)), {
+		x0 = -SPAN / 2,
+		x1 = SPAN / 2,
+		y0 = 0,
+		y1 = APEX,
+		vault = vault,
+		holes = {
+			Surface.archHole(
+				Layout.ChapelDoor.z - CZ,
+				Layout.ChapelDoor.width,
+				0,
+				Layout.ChapelDoor.spring,
+				Layout.ChapelDoor.width * 0.75,
+				0.5
+			),
+		},
+	}, limestone(74))
 
 	-- Vault
 	Kit.archRib(
@@ -345,6 +408,14 @@ local function sanctuary(dressing: Instance)
 	}, kneeler):SetAttribute("Action", "Pray")
 
 	stainedGlass(dressing, Kit.lookAt(Vector3.new(H.xMax, 7, CZ), Vector3.new(0, 7, CZ)))
+	-- Coloured light falling from the glass through the incense
+	local fall = Vector3.new(-0.75, -0.66, 0).Unit
+	for _, sh in { { 17, -1.6, Color3.fromRGB(255, 150, 120) }, { 13, 1.4, Color3.fromRGB(255, 212, 150) } } do
+		local p0 = Vector3.new(H.xMax - 0.4, sh[1], CZ + sh[2])
+		Props.lightShaft(dressing, p0, p0 + fall * (sh[1] / -fall.Y), 3.5, 5.5, sh[3], 0.95)
+	end
+	Props.dust(dressing, CFrame.new(22, 9, CZ), Vector3.new(14, 14, 12), 8)
+	Props.haze(dressing, CFrame.new(CX, 6, CZ), Vector3.new(LENGTH - 4, 8, SPAN - 4), 0.4)
 	-- Hung off to one side so it doesn't block the window
 	Props.censer(dressing, Vector3.new(26, 21.3, CZ + 5.5), 9)
 end

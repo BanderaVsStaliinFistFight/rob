@@ -7,6 +7,7 @@
 local Kit = require(script.Parent.Kit)
 local Layout = require(script.Parent.Layout)
 local Props = require(script.Parent.Props)
+local Surface = require(script.Parent.Surface)
 
 local P = Kit.Palette
 local M = Enum.Material
@@ -26,6 +27,22 @@ local WALL = 2
 local PILLARS = { E.zMin + 1, 43.5, 52, 60.5, E.zMax - 1 }
 
 local Enginarium = {}
+
+-- Heavier, grimier plating than the corridor: this hall runs hot and wet
+local function plating(seed: number): Surface.Style
+	return {
+		course = 3.5,
+		length = { 4.5, 4.5 },
+		joint = 0.12,
+		bond = false,
+		colors = { P.Hull, Color3.fromRGB(52, 50, 47), Color3.fromRGB(64, 61, 57), Color3.fromRGB(58, 57, 55) },
+		materials = { M.Metal, M.Metal, M.DiamondPlate },
+		vary = 0.08,
+		grime = 0.4,
+		rust = 0.08,
+		seed = seed,
+	}
+end
 
 local function shell(structure: Instance)
 	-- Deck plates around the reactor pit
@@ -58,10 +75,10 @@ local function shell(structure: Instance)
 	end
 	-- Hazard band and railing around the pit edge
 	for s = -1, 1, 2 do
-		Kit.hazardStripes(structure, CFrame.new(0, 0.025, RZ + s * (PIT + 0.6)), 2 * PIT + 2.4, 1.2, 0.05, 1.2)
+		Kit.hazardStripes(structure, CFrame.new(0, 0.085, RZ + s * (PIT + 0.6)), 2 * PIT + 2.4, 1.2, 0.05, 1.2)
 		Kit.hazardStripes(
 			structure,
-			CFrame.new(s * (PIT + 0.6), 0.025, RZ) * CFrame.Angles(0, math.pi / 2, 0),
+			CFrame.new(s * (PIT + 0.6), 0.085, RZ) * CFrame.Angles(0, math.pi / 2, 0),
 			2 * PIT,
 			1.2,
 			0.05,
@@ -151,7 +168,7 @@ local function shell(structure: Instance)
 			"Wall",
 			Vector3.new(WALL, E.ceiling + 2, DEPTH),
 			CFrame.new(side * (HALF + WALL / 2), E.ceiling / 2, MID),
-			P.Hull,
+			P.Seam,
 			M.Metal
 		)
 		for _, z in PILLARS do
@@ -194,7 +211,7 @@ local function shell(structure: Instance)
 		"AftWall",
 		Vector3.new(2 * HALF + 2 * WALL, E.ceiling + 2, WALL),
 		CFrame.new(0, E.ceiling / 2, E.zMax + WALL / 2),
-		P.Hull,
+		P.Seam,
 		M.Metal
 	)
 	Kit.part(
@@ -248,10 +265,75 @@ local function shell(structure: Instance)
 		D.width,
 		-bottom,
 		D.height - bottom,
-		P.Hull,
+		P.Seam,
 		M.Metal
 	)
 	Props.blastDoor(structure, CFrame.new(0, 0, z), D.width, D.height, WALL, { "Enginarium", "Omnissiah Vult" })
+
+	-- Plating: side walls above the wainscot, then both bulkheads
+	for side = -1, 1, 2 do
+		local face = Kit.lookAt(Vector3.new(side * HALF, 0, MID), Vector3.new(0, 0, MID))
+		Surface.clad(
+			structure,
+			face,
+			{ x0 = -DEPTH / 2, x1 = DEPTH / 2, y0 = 3.5, y1 = E.ceiling - 0.2 },
+			plating(80 + side)
+		)
+	end
+	Surface.clad(structure, Kit.lookAt(Vector3.new(0, 0, E.zMax), Vector3.new(0, 0, MID)), {
+		x0 = -HALF,
+		x1 = HALF,
+		y0 = 0,
+		y1 = E.ceiling - 0.2,
+	}, plating(83))
+	Surface.clad(structure, Kit.lookAt(Vector3.new(0, 0, E.zMin), Vector3.new(0, 0, MID)), {
+		x0 = -HALF,
+		x1 = HALF,
+		y0 = 0,
+		y1 = E.ceiling - 0.2,
+		holes = { { x = 0, width = D.width + 0.4, sill = -1, top = D.height + 0.2 } },
+	}, plating(84))
+
+	-- Deck plates over the structural floor
+	local plates = { P.Iron, Color3.fromRGB(70, 66, 61), Color3.fromRGB(84, 79, 72) }
+	Surface.tiles(
+		structure,
+		CFrame.new(0, 0, (E.zMin + nearZ) / 2),
+		2 * HALF,
+		nearZ - E.zMin,
+		4.5,
+		0.1,
+		plates,
+		M.DiamondPlate,
+		0.08,
+		85
+	)
+	Surface.tiles(
+		structure,
+		CFrame.new(0, 0, (farZ + E.zMax) / 2),
+		2 * HALF,
+		E.zMax - farZ,
+		4.5,
+		0.1,
+		plates,
+		M.DiamondPlate,
+		0.08,
+		86
+	)
+	for side = -1, 1, 2 do
+		Surface.tiles(
+			structure,
+			CFrame.new(side * (HALF + PIT) / 2, 0, RZ),
+			HALF - PIT,
+			2 * PIT,
+			4.5,
+			0.1,
+			plates,
+			M.DiamondPlate,
+			0.08,
+			87 + side
+		)
+	end
 end
 
 local function reactor(dressing: Instance)
@@ -468,7 +550,58 @@ local function machinery(dressing: Instance)
 				7
 			)
 		end
+
+		-- Valves, warnings and the wear of constant use
+		local junctionFace = side * (HALF - 3 - 1.7)
+		Props.valveWheel(
+			dressing,
+			Kit.lookAt(Vector3.new(junctionFace, 1.9, RZ + 1.2), Vector3.new(0, 1.9, RZ + 1.2)),
+			1.0
+		)
+		Surface.stencil(
+			dressing,
+			Kit.lookAt(Vector3.new(junctionFace, 4.05, RZ), Vector3.new(0, 4.05, RZ)),
+			Vector2.new(3.8, 0.55),
+			"DANGER - PLASMA CONDUIT",
+			P.Hazard
+		)
+		local regulatorFace = side * (HALF - 3.2)
+		local regulatorZ = (E.zMin + PILLARS[2]) / 2 + 0.5
+		Props.valveWheel(
+			dressing,
+			Kit.lookAt(Vector3.new(regulatorFace, 6.0, regulatorZ), Vector3.new(0, 6.0, regulatorZ)),
+			1.2
+		)
+		Surface.puddle(dressing, Vector3.new(side * (HALF - 6), 0, RZ + 2.5), 3.2, 90 + side)
+		Surface.puddle(dressing, Vector3.new(side * (HALF - 5.5), 0, regulatorZ - 2), 2.2, 92 + side)
+		for _, z in { 47.5, 56.5, 65 } do
+			local wall = Kit.lookAt(Vector3.new(side * HALF, 21.5, z), Vector3.new(0, 21.5, z))
+			Surface.streak(dressing, wall, 7 + (z % 3), 0.7)
+		end
 	end
+	Surface.stencil(
+		dressing,
+		Kit.lookAt(Vector3.new(0, 0, RZ - PIT - 2.2), Vector3.new(0, 1, RZ - PIT - 2.2)),
+		Vector2.new(10, 1.3),
+		"DANGER - REACTOR SHAFT",
+		P.Hazard
+	)
+	for side = -1, 1, 2 do
+		local bulkhead = Kit.lookAt(Vector3.new(side * 13, 10, E.zMin), Vector3.new(side * 13, 10, MID))
+		Surface.stencil(
+			dressing,
+			bulkhead,
+			Vector2.new(7, 1.2),
+			if side < 0 then "ENGINARIUM PRIMUS" else "ADEPTS ONLY"
+		)
+	end
+	Props.haze(
+		dressing,
+		CFrame.new(0, 9, MID),
+		Vector3.new(2 * HALF - 6, 14, DEPTH - 6),
+		0.5,
+		Color3.fromRGB(176, 186, 196)
+	)
 end
 
 local function shrine(dressing: Instance)

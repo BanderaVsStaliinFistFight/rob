@@ -7,6 +7,7 @@
 local Kit = require(script.Parent.Kit)
 local Layout = require(script.Parent.Layout)
 local Props = require(script.Parent.Props)
+local Surface = require(script.Parent.Surface)
 
 local P = Kit.Palette
 local M = Enum.Material
@@ -34,6 +35,31 @@ local VIEW = { width = 40, sill = 4, spring = 26, radius = 30 }
 
 local PILLARS = { B.zMin + 1, -74, -64, -54, -44, B.zMax - 1 }
 
+-- Direction towards the sun, high above and ahead of the prow
+local SUN = Vector3.new(0.2, 0.866, -0.46).Unit
+
+local VAULT = { span = SPAN, spring = B.spring, radius = B.radius }
+
+-- Ashlar masonry: weathered grey-brown courses over dark mortar
+local function stone(seed: number): Surface.Style
+	return {
+		course = 2.1,
+		length = { 2.6, 4.6 },
+		joint = 0.12,
+		bond = true,
+		colors = {
+			Color3.fromRGB(88, 82, 75),
+			Color3.fromRGB(80, 76, 71),
+			Color3.fromRGB(94, 88, 79),
+			Color3.fromRGB(73, 69, 65),
+		},
+		materials = { M.Slate, M.Slate, M.Slate, M.Basalt, M.Granite },
+		vary = 0.08,
+		grime = 0.35,
+		seed = seed,
+	}
+end
+
 local Bridge = {}
 
 -- Frame on a side wall's inner face: X along the wall, -Z into the room.
@@ -58,13 +84,49 @@ local function deck(parent: Instance)
 	for _, r in raised do
 		Kit.part(parent, "Deck", r[1], CFrame.new(r[2]), P.Gunmetal, M.DiamondPlate)
 	end
+	-- Worn deck plating over the structural slabs
+	local plates = { P.Gunmetal, Color3.fromRGB(88, 86, 83), Color3.fromRGB(104, 100, 96) }
+	local pitPlates = { P.Iron, Color3.fromRGB(68, 65, 61), Color3.fromRGB(82, 78, 72) }
+	local zc = (B.zMax + REAR_EDGE) / 2
+	Surface.tiles(parent, CFrame.new(0, 0, zc), SPAN, B.zMax - REAR_EDGE, 5, 0.1, plates, M.DiamondPlate, 0.07, 11)
+	zc = (B.zMin + FRONT_EDGE) / 2
+	Surface.tiles(parent, CFrame.new(0, 0, zc), SPAN, FRONT_EDGE - B.zMin, 4, 0.1, plates, M.DiamondPlate, 0.07, 12)
+	zc = (REAR_EDGE + FRONT_EDGE) / 2
+	Surface.tiles(
+		parent,
+		CFrame.new(0, 0, zc),
+		AISLE * 2,
+		REAR_EDGE - FRONT_EDGE,
+		4,
+		0.1,
+		plates,
+		M.DiamondPlate,
+		0.07,
+		13
+	)
+	for side = -1, 1, 2 do
+		local pitWidth = B.half - AISLE
+		Surface.tiles(
+			parent,
+			CFrame.new(side * (AISLE + pitWidth / 2), B.pit, zc),
+			pitWidth,
+			REAR_EDGE - FRONT_EDGE,
+			4,
+			0.1,
+			pitPlates,
+			M.DiamondPlate,
+			0.08,
+			14 + side
+		)
+	end
+
 	-- Brass edging along the drop into the pits
 	for side = -1, 1, 2 do
 		Kit.part(
 			parent,
 			"DeckEdge",
 			Vector3.new(0.4, 0.3, REAR_EDGE - FRONT_EDGE),
-			CFrame.new(side * (AISLE - 0.2), -0.1, (REAR_EDGE + FRONT_EDGE) / 2),
+			CFrame.new(side * (AISLE - 0.2), -0.04, (REAR_EDGE + FRONT_EDGE) / 2),
 			P.Brass,
 			M.Metal
 		)
@@ -73,7 +135,7 @@ local function deck(parent: Instance)
 				parent,
 				"DeckEdge",
 				Vector3.new(B.half - AISLE, 0.3, 0.4),
-				CFrame.new(side * (B.half + AISLE) / 2, -0.1, z),
+				CFrame.new(side * (B.half + AISLE) / 2, -0.04, z),
 				P.Brass,
 				M.Metal
 			)
@@ -86,7 +148,7 @@ local function deck(parent: Instance)
 			parent,
 			"Carpet",
 			Vector3.new(4.4, 0.08, z0 - z1),
-			CFrame.new(0, 0.04, (z0 + z1) / 2),
+			CFrame.new(0, 0.07, (z0 + z1) / 2),
 			P.ImperialRed,
 			M.Fabric
 		)
@@ -95,7 +157,7 @@ local function deck(parent: Instance)
 				parent,
 				"CarpetTrim",
 				Vector3.new(0.3, 0.1, z0 - z1),
-				CFrame.new(s * 2.35, 0.05, (z0 + z1) / 2),
+				CFrame.new(s * 2.35, 0.08, (z0 + z1) / 2),
 				P.Gold,
 				M.Fabric
 			)
@@ -151,9 +213,10 @@ local function pits(structure: Instance, dressing: Instance)
 		)
 
 		-- Two rows of crewed cogitators facing the viewport
-		for _, z in { -58, -68 } do
-			for _, x in { 14.5, 24.5 } do
-				Props.console(dressing, CFrame.new(side * x, B.pit, z), true)
+		for row, z in { -58, -68 } do
+			for col, x in { 14.5, 24.5 } do
+				local crew = if (row + col + (side + 1) / 2) % 2 == 0 then "servitor" else "seat"
+				Props.console(dressing, CFrame.new(side * x, B.pit, z), crew)
 			end
 		end
 		-- Cogitator stacks against the hull
@@ -180,7 +243,7 @@ local function walls(structure: Instance, dressing: Instance)
 			spring = win.spring - BOTTOM,
 			radius = win.radius,
 			step = 0.4,
-		}, P.Stone, M.Slate)
+		}, P.Mortar, M.Concrete)
 		Kit.archRib(
 			structure,
 			"WindowFrame",
@@ -228,9 +291,33 @@ local function walls(structure: Instance, dressing: Instance)
 			"Wall",
 			Vector3.new(B.zMax - solidStart, height, B.wall),
 			wallFace(side, (solidStart + B.zMax) / 2, BOTTOM) * CFrame.new(0, height / 2, B.wall / 2),
-			P.Stone,
-			M.Slate
+			P.Mortar,
+			M.Concrete
 		)
+
+		-- Masonry facing. Face x runs along the wall: x = -side * (z - MID).
+		local function faceX(z: number): number
+			return -side * (z - MID)
+		end
+		local function span(z0: number, z1: number, y0: number, y1: number): { number }
+			local a, b = faceX(z0), faceX(z1)
+			return { math.min(a, b), math.max(a, b), y0, y1 }
+		end
+		local skips = {
+			span(B.zMin, FRONT_EDGE, B.pit, 0),
+			span(REAR_EDGE, B.zMax, B.pit, 0),
+		}
+		for _, z in PILLARS do
+			table.insert(skips, span(z - 1, z + 1, B.pit, B.spring))
+		end
+		Surface.clad(structure, wallFace(side, MID, 0), {
+			x0 = -DEPTH / 2,
+			x1 = DEPTH / 2,
+			y0 = B.pit,
+			y1 = B.spring - 0.4,
+			holes = { Surface.archHole(faceX(frontZ), win.width, win.sill, win.spring, win.radius, 0.2) },
+			skips = skips,
+		}, stone(20 + side))
 
 		-- Buttress pillars with sconces
 		for i, z in PILLARS do
@@ -262,6 +349,12 @@ local function walls(structure: Instance, dressing: Instance)
 			if i > 1 and i < #PILLARS then
 				local face = Kit.lookAt(Vector3.new(side * (B.half - 1.6), 12, z), Vector3.new(0, 12, z))
 				Props.sconce(dressing, face, if i == 3 and side < 0 then 0.7 else nil, 22, 1.1)
+			end
+			if z == -54 or z == -64 then
+				Props.voxHorn(
+					dressing,
+					Kit.lookAt(Vector3.new(side * (B.half - 1.6), 17.6, z), Vector3.new(0, 17.6, z))
+				)
 			end
 		end
 		Kit.part(
@@ -378,7 +471,16 @@ local function viewport(structure: Instance, dressing: Instance)
 		spring = VIEW.spring - BOTTOM,
 		radius = VIEW.radius,
 		step = 0.6,
-	}, P.Stone, M.Slate) + BOTTOM
+	}, P.Mortar, M.Concrete) + BOTTOM
+	Surface.clad(structure, Kit.lookAt(Vector3.new(0, 0, B.zMin), Vector3.new(0, 0, 0)), {
+		x0 = -B.half,
+		x1 = B.half,
+		y0 = 0,
+		y1 = APEX,
+		vault = VAULT,
+		holes = { Surface.archHole(0, VIEW.width, VIEW.sill, VIEW.spring, VIEW.radius, 0.4) },
+		skips = { { -B.half, -B.half + 2, 0, B.spring + 0.4 }, { B.half - 2, B.half, 0, B.spring + 0.4 } },
+	}, stone(30))
 	local half = VIEW.width / 2
 	local frameDepth = B.wall + 1.2
 	Kit.archRib(
@@ -422,7 +524,7 @@ local function viewport(structure: Instance, dressing: Instance)
 		CFrame.new(0, VIEW.sill + glassH / 2, z),
 		Color3.fromRGB(150, 180, 210),
 		M.Glass,
-		{ Transparency = 0.8, CastShadow = false }
+		{ Transparency = 0.82, CastShadow = false }
 	)
 	local mullionX = VIEW.width / 6
 	local mullionTop = VIEW.spring + math.sqrt(VIEW.radius ^ 2 - (mullionX + VIEW.radius - half) ^ 2)
@@ -475,21 +577,45 @@ local function viewport(structure: Instance, dressing: Instance)
 		M.Metal
 	)
 
-	-- Planet-light washing back into the room
-	local wash = Kit.part(
+	-- Hard sunlight pouring through the viewport (the tracery casts shadows),
+	-- soft skylight off the glass, and visible shafts in the incense haze
+	local sunPos = Vector3.new(2, 40, z + 1.5)
+	local sun = Kit.part(
 		dressing,
-		"PlanetLight",
+		"Sunlight",
 		Vector3.new(1, 1, 1),
-		CFrame.new(10, 44, z + 2),
+		Kit.lookAt(sunPos, sunPos - SUN),
 		P.Black,
 		M.SmoothPlastic,
-		{ Transparency = 1, CanCollide = false, CastShadow = false }
+		{ Transparency = 1, CanCollide = false, CanQuery = false, CastShadow = false }
 	)
-	Kit.spotLight(wash, Color3.fromRGB(255, 170, 120), 60, 0.9, 75, Enum.NormalId.Back, true)
+	Kit.spotLight(sun, Color3.fromRGB(255, 238, 216), 60, 3, 70, Enum.NormalId.Front, true)
+	local sky = Kit.part(
+		dressing,
+		"Skylight",
+		Vector3.new(VIEW.width - 2, 40, 0.1),
+		CFrame.new(0, VIEW.sill + 21, z + 0.4),
+		P.Black,
+		M.SmoothPlastic,
+		{ Transparency = 1, CanCollide = false, CanQuery = false, CastShadow = false }
+	)
+	Kit.new(
+		"SurfaceLight",
+		{ Face = Enum.NormalId.Back, Color = Color3.fromRGB(200, 214, 236), Range = 36, Brightness = 0.5, Angle = 60 },
+		sky
+	)
+	local shafts = { { 6, 50, 7, 11 }, { -6, 44, 6, 10 }, { 12, 36, 5, 8 }, { -12, 32, 5, 8 }, { 0, 28, 4, 7 } }
+	for _, sh in shafts do
+		local p0 = Vector3.new(sh[1], sh[2], z + 0.5)
+		local floorY = if math.abs(sh[1] - sh[2] * SUN.X / SUN.Y) < AISLE then 0 else B.pit
+		local p1 = p0 - SUN * ((sh[2] - floorY) / SUN.Y)
+		Props.lightShaft(dressing, p0, p1, sh[3], sh[4], Color3.fromRGB(255, 232, 200), 0.955)
+	end
+	Props.dust(dressing, CFrame.new(-4, 20, -68), Vector3.new(34, 36, 28), 14)
 
 	-- Auspex stations on the observation gallery
 	for s = -1, 1, 2 do
-		Props.console(dressing, CFrame.new(s * 14, 0, -80.2), true)
+		Props.console(dressing, CFrame.new(s * 14, 0, -80.2), "seat")
 		Props.brazier(dressing, Vector3.new(s * 26, 0, -79))
 	end
 end
@@ -506,9 +632,18 @@ local function rearWall(structure: Instance, dressing: Instance)
 		D.width,
 		-BOTTOM,
 		D.height - BOTTOM,
-		P.Stone,
-		M.Slate
+		P.Mortar,
+		M.Concrete
 	)
+	Surface.clad(structure, Kit.lookAt(Vector3.new(0, 0, B.zMax), Vector3.new(0, 0, -100)), {
+		x0 = -B.half,
+		x1 = B.half,
+		y0 = 0,
+		y1 = APEX,
+		vault = VAULT,
+		holes = { { x = 0, width = D.width + 0.4, sill = -1, top = D.height + 0.2 } },
+		skips = { { -B.half, -B.half + 2, 0, B.spring + 0.4 }, { B.half - 2, B.half, 0, B.spring + 0.4 } },
+	}, stone(40))
 	Props.blastDoor(structure, CFrame.new(0, 0, z), D.width, D.height, B.wall, { "Ave Imperator", "Command Deck" })
 	Props.aquila(dressing, CFrame.new(0, 26.5, B.zMax - 0.6), 1.15)
 	for side = -1, 1, 2 do
@@ -714,13 +849,174 @@ local function hololith(dressing: Instance)
 	holo:SetAttribute("SpinSpeed", 0.35)
 end
 
--- The void beyond the viewport: a hive world and its moon.
+-- The void beyond the viewport ------------------------------------------------------
+--[[
+	The hive world and its moon are BillboardGui "impostors": stacked circular
+	frames with gradients give a smooth crescent terminator, an atmospheric rim
+	and city lights, which no single part can. The shading matches SUN, so the
+	crescent faces the light pouring through the viewport.
+]]
+
+local function guiDisc(
+	parent: Instance,
+	name: string,
+	x: number,
+	y: number,
+	size: number,
+	color: Color3,
+	transparency: number,
+	z: number
+): Frame
+	local frame = Kit.new("Frame", {
+		Name = name,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(x, y),
+		Size = UDim2.fromScale(size, size),
+		BackgroundColor3 = color,
+		BackgroundTransparency = transparency,
+		BorderSizePixel = 0,
+		ZIndex = z,
+	}, parent)
+	Kit.new("UICorner", { CornerRadius = UDim.new(0.5, 0) }, frame)
+	return frame
+end
+
+local function gradient(frame: Instance, rotation: number, color: ColorSequence?, transparency: NumberSequence?)
+	Kit.new("UIGradient", {
+		Rotation = rotation,
+		Color = color or ColorSequence.new(Color3.new(1, 1, 1)),
+		Transparency = transparency or NumberSequence.new(0),
+	}, frame)
+end
+
+local function seq(points: { { number } }): NumberSequence
+	local keys = {}
+	for i, pt in points do
+		keys[i] = NumberSequenceKeypoint.new(pt[1], pt[2])
+	end
+	return NumberSequence.new(keys)
+end
+
+export type Body = {
+	diameter: number,
+	surface: { Color3 }, -- three colours across the disc
+	details: { Color3 }, -- cloud/terrain colours
+	detailCount: number,
+	halo: Color3?,
+	cities: number,
+	seed: number,
+}
+
+local function celestial(parent: Instance, name: string, position: Vector3, o: Body)
+	local rand = Kit.random(o.seed)
+	local anchor = Kit.part(
+		parent,
+		name,
+		Vector3.new(1, 1, 1),
+		CFrame.new(position),
+		P.Black,
+		M.SmoothPlastic,
+		{ Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false }
+	)
+	local gui = Kit.new("BillboardGui", {
+		Name = "Disc",
+		Size = UDim2.fromScale(o.diameter * 1.25, o.diameter * 1.25),
+		LightInfluence = 0,
+		Brightness = 1.15,
+		AlwaysOnTop = false,
+		MaxDistance = 100000,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	}, anchor)
+	local b = 0.8 -- body size within the gui
+	local lightRot = 99 -- gradient runs from the lit limb (0) to the dark side (1)
+	local extent = b * (math.abs(math.cos(math.rad(lightRot))) + math.abs(math.sin(math.rad(lightRot))))
+	local function along(x: number, y: number): number
+		return 0.5 + ((x - 0.5) * math.cos(math.rad(lightRot)) + (y - 0.5) * math.sin(math.rad(lightRot))) / extent
+	end
+
+	if o.halo then
+		for i, h in { { 1.13, 0.78 }, { 1.07, 0.6 }, { 1.03, 0.3 } } do
+			local ring = guiDisc(gui, "Atmosphere", 0.5, 0.5, b * h[1], o.halo, 0, i)
+			gradient(ring, lightRot, nil, seq({ { 0, h[2] }, { 0.22, 0.85 }, { 0.38, 1 }, { 1, 1 } }))
+		end
+	end
+	local body = guiDisc(gui, "Surface", 0.5, 0.5, b, Color3.new(1, 1, 1), 0, 4)
+	gradient(
+		body,
+		20,
+		ColorSequence.new({
+			ColorSequenceKeypoint.new(0, o.surface[1]),
+			ColorSequenceKeypoint.new(0.5, o.surface[2]),
+			ColorSequenceKeypoint.new(1, o.surface[3]),
+		})
+	)
+	-- Cloud bands and terrain, kept inside the limb
+	for _ = 1, o.detailCount do
+		local w, h = rand(0.08, 0.3) * b, rand(0.02, 0.07) * b
+		local r = rand(0, 0.48 * b - w / 2)
+		local a = rand(0, math.pi * 2)
+		local frame = Kit.new("Frame", {
+			Name = "Detail",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5 + math.cos(a) * r, 0.5 + math.sin(a) * r),
+			Size = UDim2.fromScale(w, h),
+			Rotation = rand(-14, 14),
+			BackgroundColor3 = o.details[math.floor(rand(1, #o.details + 0.999))],
+			BackgroundTransparency = rand(0.35, 0.7),
+			BorderSizePixel = 0,
+			ZIndex = 5,
+		}, gui)
+		Kit.new("UICorner", { CornerRadius = UDim.new(0.5, 0) }, frame)
+	end
+	-- Night side: a thin lit crescent, then darkness
+	local shadow = guiDisc(gui, "Night", 0.5, 0.5, b * 1.004, Color3.new(0, 0, 0), 0, 6)
+	gradient(shadow, lightRot, nil, seq({ { 0, 1 }, { 0.18, 1 }, { 0.3, 0.45 }, { 0.4, 0.06 }, { 0.48, 0 }, { 1, 0 } }))
+	-- Hive-city lights scattered in clusters across the night side
+	local placed = 0
+	while placed < o.cities do
+		local cx, cy = rand(0.5 - 0.42 * b, 0.5 + 0.42 * b), rand(0.5 - 0.42 * b, 0.5 + 0.42 * b)
+		if along(cx, cy) > 0.42 and (Vector2.new(cx, cy) - Vector2.new(0.5, 0.5)).Magnitude < 0.44 * b then
+			for _ = 1, math.floor(rand(5, 14)) do
+				local x, y = cx + rand(-0.03, 0.03) * b, cy + rand(-0.02, 0.02) * b
+				if (Vector2.new(x, y) - Vector2.new(0.5, 0.5)).Magnitude < 0.47 * b then
+					local dot = rand(0.003, 0.007)
+					Kit.new("Frame", {
+						Name = "City",
+						AnchorPoint = Vector2.new(0.5, 0.5),
+						Position = UDim2.fromScale(x, y),
+						Size = UDim2.fromScale(dot, dot),
+						BackgroundColor3 = Color3.fromRGB(255, 190, 115),
+						BackgroundTransparency = rand(0.1, 0.55),
+						BorderSizePixel = 0,
+						ZIndex = 7,
+					}, gui)
+				end
+			end
+			placed += 1
+		end
+	end
+end
+
 local function void(ship: Instance)
 	local void = Kit.model(ship, "Void")
-	local far = { CanCollide = false, CastShadow = false, CanQuery = false }
-	Kit.ball(void, "Planet", 1400, Vector3.new(430, 150, -1750), Color3.fromRGB(104, 50, 30), M.Neon, far)
-	Kit.ball(void, "Atmosphere", 1470, Vector3.new(430, 150, -1750), Color3.fromRGB(255, 150, 90), M.ForceField, far)
-	Kit.ball(void, "Moon", 220, Vector3.new(-520, 380, -2300), Color3.fromRGB(58, 58, 66), M.Neon, far)
+	celestial(void, "HiveWorld", Vector3.new(96, 195, -511), {
+		diameter = 325,
+		surface = { Color3.fromRGB(176, 140, 104), Color3.fromRGB(138, 108, 84), Color3.fromRGB(160, 126, 96) },
+		details = { Color3.fromRGB(232, 218, 198), Color3.fromRGB(96, 74, 58), Color3.fromRGB(205, 170, 130) },
+		detailCount = 26,
+		halo = Color3.fromRGB(255, 196, 150),
+		cities = 18,
+		seed = 7,
+	})
+	celestial(void, "Moon", Vector3.new(-188, 358, -635), {
+		diameter = 61,
+		surface = { Color3.fromRGB(150, 148, 146), Color3.fromRGB(122, 120, 118), Color3.fromRGB(140, 138, 135) },
+		details = { Color3.fromRGB(92, 90, 88), Color3.fromRGB(170, 168, 165) },
+		detailCount = 10,
+		halo = nil,
+		cities = 0,
+		seed = 8,
+	})
 end
 
 function Bridge.build(ship: Model)
@@ -736,6 +1032,7 @@ function Bridge.build(ship: Model)
 	throne(dressing)
 	hololith(dressing)
 	Props.servoSkull(dressing, CFrame.new(0, 15, MID - 2 + 12), Vector3.new(17, 1.2, 12), 0.16, 1.7)
+	Props.haze(dressing, CFrame.new(0, 8, MID), Vector3.new(SPAN - 6, 12, DEPTH - 6), 0.6)
 	void(ship)
 end
 

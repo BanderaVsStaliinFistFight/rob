@@ -11,9 +11,12 @@ asset IDs, so nothing can be moderated away or fail to load.
 |---|---|
 | ![Corridor](docs/corridor.jpg) | ![Chapel](docs/chapel.jpg) |
 | ![Aquila and organ pipes](docs/bridge-rear.jpg) | ![Enginarium](docs/enginarium.jpg) |
+| ![Servitor pit](docs/servitor-pit.jpg) | |
 
 *These images come from an approximate offline renderer (three.js), not Roblox
-itself. In Studio, materials and Future lighting will look somewhat different.*
+itself. In Studio, materials and Future lighting will look somewhat different.
+The renderer can't show particles (haze, dust, steam) or on-screen text, and it
+leaves out the viewport glass.*
 
 ## Open it
 
@@ -28,6 +31,34 @@ itself. In Studio, materials and Future lighting will look somewhat different.*
 
 You spawn in the corridor facing the bridge.
 
+## Making it look real
+
+The ship is meant to look used rather than freshly built:
+
+* **Masonry and plating.** The bridge and chapel walls are faced with
+  individual stone blocks (staggered courses and mortar joints, slate on the
+  bridge, limestone in the chapel). The corridor and enginarium are clad in
+  separate hull plates with dark seams and diamond-plate kick panels. Every
+  block and plate has its own slight colour variation, and the lower courses
+  are darker with grime.
+* **Weathering.** Lamps leave soot plumes on the walls above them, the
+  enginarium plating has rust patches and streaks, and there are glossy oil and
+  condensation puddles on the decks. Floors are separate worn deck plates.
+* **Light.** Lamps are frosted-glass shades around a small glowing filament
+  instead of solid neon blobs, in warm tungsten colours. Hard sunlight comes
+  through the viewport, so its tracery casts shadows. You can see light shafts
+  in the haze from the viewport and the stained glass, along with drifting dust
+  motes that only show where light falls. Thin incense and steam haze hangs in
+  every room. Bloom and colour grading are toned down.
+* **The view.** The hive world and its moon are shaded discs rather than flat
+  glowing balls. The planet shows a thin sunlit crescent with a hazy
+  atmospheric rim, and clusters of hive-city lights across its night side. The
+  shading matches the sunlight coming through the window.
+* **Lived-in details.** Hardwired servitors are bent over half the bridge
+  consoles. Consoles carry candle stubs and purity seals. There are stencilled
+  deck markings and frame numbers, conduit flanges, red valve wheels, vox-caster
+  horns, and doors that vent steam when they open.
+
 ## What's aboard
 
 | Area | Highlights |
@@ -39,15 +70,15 @@ You spawn in the corridor facing the bridge.
 
 ### Interactive bits
 
-* **Blast doors** slide up into the bulkhead when you approach. Their lamps
-  turn green while they're open.
+* **Blast doors** slide up into the bulkhead when you approach, venting steam.
+  Their lamps turn green while they're open.
 * **Command throne:** pull the red lever on its right armrest (*Sound General
   Quarters*). Lumens turn red and pulse, beacons spin, and the cogitators start
   scrolling alarms. Pull it again to stand down.
 * **Chapel kneeler:** *Pray*, and the candles flare.
 * **Machine altar:** *Anoint the Machine Spirit*, and the reactor surges
   white-hot while its rings spin up.
-* The throne, the servitor seats and the pews are all sittable `Seat`s.
+* The throne, the empty servitor seats and the pews are all sittable `Seat`s.
 
 ## How it works
 
@@ -56,7 +87,8 @@ src/ShipBuilder/          geometry: plain Roblox code, no runtime dependencies
   init.luau               ShipBuilder.build(parent) -> Model
   Layout.luau             deck plan and shared dimensions
   Kit.luau                part helpers, gothic arch maths, walls with openings
-  Props.luau              skulls, servo-skulls, aquila, cog, doors, cogitators...
+  Surface.luau            masonry/plating cladding, deck plates, soot, rust, puddles, stencils
+  Props.luau              skulls, servo-skulls, aquila, cog, doors, cogitators, servitors...
   Corridor/Bridge/Chapel/Enginarium.luau
 src/ShipScripts/
   ShipSystems.server.luau doors + proximity prompts (sets attributes)
@@ -79,8 +111,11 @@ Things opt in to effects through an `Fx` attribute, such as `Lumen`, `Candle`,
 `ServoSkull`, `Spin`, `Beacon` or `Cogitator`. To make a new part flicker, give
 it `Fx = "Lumen"` and a `Flicker` value.
 
-The model has about 6,100 parts and 84 lights. It's set to
-`ModelStreamingMode = Persistent`, so streaming won't unload parts of it.
+The model has about 8,200 parts and 85 lights, plus a few light-shaft beams and
+low-rate particle emitters for haze and dust. It's set to
+`ModelStreamingMode = Persistent`, so streaming won't unload parts of it. On
+low-end devices, delete the `HazeVolume` and `DustVolume` parts if particles
+cost too much.
 
 ## Rebuild from source
 

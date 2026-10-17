@@ -4,6 +4,7 @@
 ]]
 
 local Kit = require(script.Parent.Kit)
+local Surface = require(script.Parent.Surface)
 
 local P = Kit.Palette
 local M = Enum.Material
@@ -299,10 +300,19 @@ function Props.lantern(parent: Instance, anchor: Vector3, drop: number, flicker:
 		local p = centre + Vector3.new(math.cos(a) * 0.55, 0, math.sin(a) * 0.55)
 		Kit.part(parent, "LanternCage", Vector3.new(0.1, 1.4, 0.1), CFrame.new(p), P.Iron, M.Metal, GLOW)
 	end
-	local globe = Kit.ball(parent, "Lumen", 0.85, centre, P.LumenWarm, M.Neon, GLOW)
-	Kit.pointLight(globe, P.LumenWarm, range or 20, 1.1, true)
-	lumen(globe, flicker)
-	return globe
+	Kit.ball(
+		parent,
+		"LanternGlass",
+		0.95,
+		centre,
+		P.LampGlass,
+		M.Glass,
+		{ CanCollide = false, CastShadow = false, Transparency = 0.35 }
+	)
+	local filament = Kit.ball(parent, "Lumen", 0.32, centre, P.LumenWarm, M.Neon, GLOW)
+	Kit.pointLight(filament, P.LumenWarm, range or 20, 1.1, true)
+	lumen(filament, flicker)
+	return filament
 end
 
 -- Wall-mounted lumen. `cf` sits on the wall surface facing out of it.
@@ -311,18 +321,29 @@ function Props.sconce(parent: Instance, cf: CFrame, flicker: number?, range: num
 	Kit.part(parent, "SconceArm", Vector3.new(0.3, 0.3, 1.0), cf * CFrame.new(0, -0.4, -0.65), P.Iron, M.Metal, DECOR)
 	local cup = (cf * CFrame.new(0, -0.45, -1.15)).Position
 	Kit.column(parent, "SconceCup", 0.4, 0.8, cup, P.Brass, M.Metal, GLOW)
-	local glow = Kit.part(
+	Kit.column(
+		parent,
+		"SconceGlass",
+		0.95,
+		0.6,
+		cup + Vector3.new(0, 0.38, 0),
+		P.LampGlass,
+		M.Glass,
+		{ CanCollide = false, CastShadow = false, Transparency = 0.4 }
+	)
+	local filament = Kit.part(
 		parent,
 		"Lumen",
-		Vector3.new(0.4, 0.75, 0.4),
-		CFrame.new(cup + Vector3.new(0, 0.78, 0)),
+		Vector3.new(0.14, 0.45, 0.14),
+		CFrame.new(cup + Vector3.new(0, 0.8, 0)),
 		P.LumenWarm,
 		M.Neon,
 		GLOW
 	)
-	Kit.pointLight(glow, P.LumenWarm, range or 16, brightness or 1, true)
-	lumen(glow, flicker)
-	return glow
+	Kit.pointLight(filament, P.LumenWarm, range or 16, brightness or 1, true)
+	lumen(filament, flicker)
+	Surface.soot(parent, cf * CFrame.new(0, 0.9, 0), 4.5, 1.7)
+	return filament
 end
 
 -- Wax candle standing on `base`. Candle flames get a gentle flicker client-side.
@@ -373,7 +394,7 @@ function Props.brazier(parent: Instance, base: Vector3)
 		)
 	end
 	local coals =
-		Kit.column(parent, "Coals", 0.2, 2.4, bowl + Vector3.new(0, 1.0, 0), Color3.fromRGB(255, 110, 40), M.Neon, GLOW)
+		Kit.column(parent, "Coals", 0.2, 2.4, bowl + Vector3.new(0, 1.0, 0), Color3.fromRGB(196, 72, 24), M.Neon, GLOW)
 	Kit.new(
 		"Fire",
 		{ Size = 4, Heat = 7, Color = Color3.fromRGB(255, 140, 40), SecondaryColor = Color3.fromRGB(180, 30, 10) },
@@ -485,7 +506,158 @@ function Props.steamVent(parent: Instance, pos: Vector3)
 	}, grate)
 end
 
+-- Atmosphere -----------------------------------------------------------------------
+
+local function key(t: number, v: number): NumberSequenceKeypoint
+	return NumberSequenceKeypoint.new(t, v)
+end
+
+local function volume(parent: Instance, name: string, cf: CFrame, size: Vector3): BasePart
+	return Kit.part(
+		parent,
+		name,
+		size,
+		cf,
+		P.Black,
+		M.SmoothPlastic,
+		{ Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false }
+	)
+end
+
+-- Faint shaft of light from p0 to p1 (a camera-facing Beam, no texture needed).
+function Props.lightShaft(
+	parent: Instance,
+	p0: Vector3,
+	p1: Vector3,
+	width0: number,
+	width1: number,
+	color: Color3,
+	transparency: number
+)
+	local anchor = volume(parent, "LightShaft", CFrame.new(p0), Vector3.new(0.2, 0.2, 0.2))
+	local a0 = Kit.new("Attachment", { Name = "Start" }, anchor)
+	local a1 = Kit.new("Attachment", { Name = "End", CFrame = CFrame.new(p1 - p0) }, anchor)
+	Kit.new("Beam", {
+		Attachment0 = a0,
+		Attachment1 = a1,
+		Width0 = width0,
+		Width1 = width1,
+		FaceCamera = true,
+		Segments = 1,
+		LightEmission = 1,
+		LightInfluence = 0,
+		Color = ColorSequence.new(color),
+		Transparency = NumberSequence.new({
+			key(0, 1),
+			key(0.15, transparency),
+			key(0.7, transparency + 0.02),
+			key(1, 1),
+		}),
+	}, anchor)
+end
+
+-- Dust motes drifting through a box of air; only visible where light falls.
+function Props.dust(parent: Instance, cf: CFrame, size: Vector3, rate: number)
+	Kit.new("ParticleEmitter", {
+		Name = "Dust",
+		Texture = "rbxasset://textures/particles/sparkles_main.dds",
+		Shape = Enum.ParticleEmitterShape.Box,
+		ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume,
+		Rate = rate,
+		Lifetime = NumberRange.new(10, 16),
+		Speed = NumberRange.new(0.05, 0.25),
+		SpreadAngle = Vector2.new(180, 180),
+		Acceleration = Vector3.new(0, -0.01, 0),
+		Drag = 0.3,
+		Size = NumberSequence.new(0.07),
+		Transparency = NumberSequence.new({ key(0, 1), key(0.2, 0.4), key(0.8, 0.4), key(1, 1) }),
+		Color = ColorSequence.new(Color3.fromRGB(255, 236, 205)),
+		LightEmission = 0.3,
+		LightInfluence = 1,
+	}, volume(parent, "DustVolume", cf, size))
+end
+
+-- Thin layers of hanging haze, lit by whatever lights are nearby.
+function Props.haze(parent: Instance, cf: CFrame, size: Vector3, rate: number, color: Color3?)
+	Kit.new("ParticleEmitter", {
+		Name = "Haze",
+		Texture = "rbxasset://textures/particles/smoke_main.dds",
+		Shape = Enum.ParticleEmitterShape.Box,
+		ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume,
+		Rate = rate,
+		Lifetime = NumberRange.new(30, 45),
+		Speed = NumberRange.new(0.1, 0.3),
+		SpreadAngle = Vector2.new(180, 180),
+		RotSpeed = NumberRange.new(-4, 4),
+		Rotation = NumberRange.new(0, 360),
+		Size = NumberSequence.new({ key(0, 16), key(1, 28) }),
+		Transparency = NumberSequence.new({ key(0, 1), key(0.3, 0.972), key(0.7, 0.975), key(1, 1) }),
+		Color = ColorSequence.new(color or Color3.fromRGB(196, 186, 172)),
+		LightInfluence = 1,
+	}, volume(parent, "HazeVolume", cf, size))
+end
+
 -- Machinery -----------------------------------------------------------------------
+
+-- Painted valve wheel on a short stem, facing out of `cf`.
+function Props.valveWheel(parent: Instance, cf: CFrame, diameter: number)
+	local r = diameter / 2
+	local red = Color3.fromRGB(122, 28, 22)
+	Kit.cylinder(
+		parent,
+		"ValveStem",
+		0.5,
+		0.25,
+		cf * CFrame.new(0, 0, -0.25) * CFrame.Angles(0, math.pi / 2, 0),
+		P.Iron,
+		M.Metal,
+		DECOR
+	)
+	local wheel = cf * CFrame.new(0, 0, -0.5)
+	for k = 0, 9 do
+		local seg = wheel * CFrame.Angles(0, 0, k * math.pi / 5) * CFrame.new(r, 0, 0)
+		Kit.part(
+			parent,
+			"ValveWheel",
+			Vector3.new(0.14, 2 * r * math.tan(math.pi / 10) + 0.05, 0.14),
+			seg,
+			red,
+			M.Metal,
+			DECOR
+		)
+	end
+	for k = 0, 1 do
+		Kit.part(
+			parent,
+			"ValveSpoke",
+			Vector3.new(diameter, 0.1, 0.1),
+			wheel * CFrame.Angles(0, 0, k * math.pi / 2 + 0.4),
+			red,
+			M.Metal,
+			DECOR
+		)
+	end
+	Kit.disc(parent, "ValveHub", 0.2, 0.3, wheel, P.Brass, M.Metal, DECOR)
+end
+
+-- Brass vox-caster horn on a bracket, angled down out of `cf`.
+function Props.voxHorn(parent: Instance, cf: CFrame)
+	Kit.part(parent, "VoxBracket", Vector3.new(0.6, 0.6, 0.9), cf * CFrame.new(0, 0, -0.45), P.Iron, M.Metal, DECOR)
+	local axis = cf * CFrame.new(0, -0.2, -1.0) * CFrame.Angles(math.rad(-30), 0, 0)
+	for k = 0, 3 do
+		Kit.cylinder(
+			parent,
+			"VoxHorn",
+			0.42,
+			0.45 + k * 0.3,
+			axis * CFrame.new(0, 0, -0.35 * k) * CFrame.Angles(0, math.pi / 2, 0),
+			P.Brass,
+			M.Metal,
+			DECOR
+		)
+	end
+	Kit.disc(parent, "VoxGrille", 0.05, 1.25, axis * CFrame.new(0, 0, -1.25), P.Black, M.Metal, DECOR)
+end
 
 -- Hard-wired servitor seat; the occupant faces -Z.
 function Props.servitorSeat(parent: Instance, cf: CFrame)
@@ -498,8 +670,69 @@ function Props.servitorSeat(parent: Instance, cf: CFrame)
 	end
 end
 
--- Cogitator console. `cf` is on the floor; the operator stands or sits at +Z.
-function Props.console(parent: Instance, cf: CFrame, withSeat: boolean?): Model
+-- Servitor hard-wired into its station, hunched over the controls ahead (-Z).
+function Props.servitor(parent: Instance, cf: CFrame)
+	local skin = Color3.fromRGB(176, 158, 148)
+	local robe = Color3.fromRGB(56, 50, 44)
+	Kit.column(parent, "SeatPost", 1.2, 0.6, cf.Position, P.Iron, M.Metal)
+	Kit.part(parent, "Cradle", Vector3.new(1.9, 0.6, 1.8), cf * CFrame.new(0, 1.5, 0), P.Iron, M.Metal)
+	Kit.part(parent, "SeatBack", Vector3.new(1.9, 2.6, 0.3), cf * CFrame.new(0, 2.9, 0.85), P.Iron, M.Metal)
+	Kit.part(parent, "Robe", Vector3.new(1.5, 1.0, 1.3), cf * CFrame.new(0, 2.3, 0.05), robe, M.Fabric)
+	Kit.part(
+		parent,
+		"Torso",
+		Vector3.new(1.4, 1.5, 0.85),
+		cf * CFrame.new(0, 3.3, 0.0) * CFrame.Angles(math.rad(-10), 0, 0),
+		robe,
+		M.Fabric
+	)
+	Kit.part(parent, "Hood", Vector3.new(1.2, 0.55, 0.8), cf * CFrame.new(0, 4.05, 0.3), robe, M.Fabric)
+	local head = cf * CFrame.new(0, 4.3, -0.2) * CFrame.Angles(math.rad(-20), 0, 0)
+	Kit.ball(parent, "Head", 0.85, head, skin, M.SmoothPlastic)
+	Kit.part(parent, "Jaw", Vector3.new(0.5, 0.3, 0.45), head * CFrame.new(0, -0.35, -0.12), skin, M.SmoothPlastic)
+	Kit.part(
+		parent,
+		"CranialPlate",
+		Vector3.new(0.62, 0.16, 0.62),
+		head * CFrame.new(0.05, 0.38, 0.05),
+		P.Iron,
+		M.Metal
+	)
+	Kit.ball(parent, "Augmetic", 0.22, head * CFrame.new(0.19, 0.05, -0.37), P.Alert, M.Neon, GLOW)
+	Kit.part(
+		parent,
+		"EyeSocket",
+		Vector3.new(0.15, 0.06, 0.05),
+		head * CFrame.new(-0.18, 0.05, -0.4),
+		Color3.fromRGB(44, 32, 30),
+		M.SmoothPlastic,
+		DECOR
+	)
+	for side = -1, 1, 2 do
+		local shoulder = (cf * CFrame.new(side * 0.8, 3.85, 0.0)).Position
+		local elbow = (cf * CFrame.new(side * 0.95, 3.05, -0.9)).Position
+		local hand = (cf * CFrame.new(side * 0.7, 3.05, -2.1)).Position
+		Kit.beam(parent, "Arm", shoulder, elbow, 0.38, 0.38, robe, M.Fabric)
+		Kit.ball(parent, "Elbow", 0.32, elbow, P.Gunmetal, M.Metal)
+		Kit.beam(parent, "Manipulator", elbow, hand, 0.2, 0.2, P.Iron, M.Metal)
+		Kit.part(parent, "Claw", Vector3.new(0.34, 0.12, 0.3), CFrame.new(hand), P.Brass, M.Metal)
+	end
+	for k = -1, 1 do
+		Kit.cable(
+			parent,
+			(head * CFrame.new(k * 0.18, 0.15, 0.36)).Position,
+			(cf * CFrame.new(k * 0.4, 3.9, 1.05)).Position,
+			0.15,
+			0.1,
+			P.Black,
+			3
+		)
+	end
+end
+
+-- Cogitator console. `cf` is on the floor; the operator sits at +Z.
+-- `crew` is "seat" for an empty seat, "servitor" for a wired-in servitor, or nil.
+function Props.console(parent: Instance, cf: CFrame, crew: string?): Model
 	local m = Kit.model(parent, "Cogitator")
 	Kit.part(m, "Cabinet", Vector3.new(4, 2.6, 1.8), cf * CFrame.new(0, 1.3, 0), P.Iron, M.Metal)
 	Kit.part(m, "Kick", Vector3.new(3.6, 0.5, 0.2), cf * CFrame.new(0, 0.25, 0.95), P.HullDark, M.Metal)
@@ -565,8 +798,15 @@ function Props.console(parent: Instance, cf: CFrame, withSeat: boolean?): Model
 			5
 		)
 	end
-	if withSeat then
+	-- The clutter of long use: a wax-dripped candle stub and a purity seal
+	local rand = Kit.random(math.floor(math.abs(cf.Position.X * 7 + cf.Position.Z * 13)) + 1)
+	local stub = rand(-1, 1) > 0
+	Props.candle(m, (cf * CFrame.new(if stub then -1.85 else 1.85, 3.36, -0.75)).Position, rand(0.25, 0.55))
+	Props.puritySeal(m, cf * CFrame.new(rand(-1.2, 1.2), 2.2, 0.92) * CFrame.Angles(0, math.pi, 0), 0.75)
+	if crew == "seat" then
 		Props.servitorSeat(m, cf * CFrame.new(0, 0, 2.7))
+	elseif crew == "servitor" then
+		Props.servitor(m, cf * CFrame.new(0, 0, 2.7))
 	end
 	return m
 end
@@ -706,6 +946,32 @@ function Props.blastDoor(
 		if text then
 			Props.plaque(door, hood * CFrame.new(0, rise * 0.4, -0.3), Vector2.new(span * 0.62, 1.6), text)
 		end
+		local vent = Kit.part(
+			door,
+			"SteamVent",
+			Vector3.new(width, 0.2, 0.2),
+			faceCF * CFrame.new(0, 0.15, -0.5),
+			P.Black,
+			M.SmoothPlastic,
+			{ Transparency = 1, CanCollide = false, CanQuery = false, CastShadow = false }
+		)
+		Kit.new("ParticleEmitter", {
+			Name = "DoorSteam",
+			Enabled = false,
+			Texture = "rbxasset://textures/particles/smoke_main.dds",
+			Shape = Enum.ParticleEmitterShape.Box,
+			Lifetime = NumberRange.new(1.2, 2.2),
+			Speed = NumberRange.new(2, 5),
+			SpreadAngle = Vector2.new(35, 35),
+			Acceleration = Vector3.new(0, 2, 0),
+			Drag = 2,
+			RotSpeed = NumberRange.new(-60, 60),
+			Rotation = NumberRange.new(0, 360),
+			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 5) }),
+			Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 1) }),
+			Color = ColorSequence.new(Color3.fromRGB(220, 220, 224)),
+			EmissionDirection = Enum.NormalId.Top,
+		}, vent)
 		for side = -1, 1, 2 do
 			local lamp = Kit.ball(
 				door,
