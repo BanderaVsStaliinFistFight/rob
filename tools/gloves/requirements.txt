@@ -1,0 +1,5 @@
+numpy
+scipy
+zstandard
+lz4
+pillow

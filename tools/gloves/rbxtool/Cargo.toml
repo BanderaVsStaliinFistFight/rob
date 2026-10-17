@@ -1,0 +1,11 @@
+[package]
+name = "rbxtool"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rbx_binary = "3.0.1"
+rbx_dom_weak = "4.2.0"
+rbx_types = "3.1.0"
+rbx_xml = "3.0.1"
+serde_json = "1.0.154"
